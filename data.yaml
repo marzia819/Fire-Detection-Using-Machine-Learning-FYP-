@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['fire']
+
+roboflow:
+  workspace: fire-detection-2xe3o
+  project: continuous_fire-0shcw
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/fire-detection-2xe3o/continuous_fire-0shcw/dataset/1

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI based fire detection</title>
+    <!-- Fonts & Leaflet & ChartJS -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+
+<body>
+    <audio id="alarmAudio" src="https://assets.mixkit.co/active_storage/sfx/995/995-preview.mp3" loop
+        preload="auto"></audio>
+
+    <!-- Emergency Dispatch Flash -->
+    <div class="dispatch-overlay" id="dispatchOverlay">
+        <div class="dispatch-box">
+            <h1>🚨 EMERGENCY DISPATCH ACTIVATED 🚨</h1>
+            <p id="dispatchMsg">Critical Threat Level (>80%). Authorities have been alerted.</p>
+        </div>
+    </div>
+
+    <div class="dashboard-grid">
+        <!-- Top Nav -->
+        <header class="top-nav glass-panel">
+            <div class="logo">
+                <div class="pulse-ring"></div>
+                <h2>AI based <span>fire detection</span></h2>
+            </div>
+            <div class="global-status" id="globalStatus">
+                <span class="icon">●</span> <span id="statusText">System Idle</span>
+            </div>
+            <div class="nav-controls">
+                <button id="fullScreenBtn" class="btn">⛶ Full Screen</button>
+                <button id="muteBtn" class="btn">🔊 Mute Alarm</button>
+                <a href="/logout" class="btn"
+                    style="text-decoration:none; color:var(--alert-red); border-color:rgba(239, 68, 68, 0.3);">🔓
+                    Logout</a>
+                <div class="date-time" id="dateTime">--:--:--</div>
+            </div>
+        </header>
+
+        <!-- Sidebar / Sys Stats -->
+        <aside class="sidebar glass-panel">
+            <h3>Server Performance</h3>
+
+            <div class="metric-block">
+                <span>CPU Usage <span class="val" id="cpuVal">0%</span></span>
+                <div class="bar-bg">
+                    <div class="bar-fill blue" id="cpuBar"></div>
+                </div>
+            </div>
+            <div class="metric-block">
+                <span>RAM Usage <span class="val" id="ramVal">0%</span></span>
+                <div class="bar-bg">
+                    <div class="bar-fill purple" id="ramBar"></div>
+                </div>
+            </div>
+
+            <div class="metric-grid">
+                <div class="metric-box">
+                    <span class="label">Engine FPS</span>
+                    <span class="value" id="fpsValue">0</span>
+                </div>
+                <div class="metric-box">
+                    <span class="label">Active Node</span>
+                    <span class="value" style="font-size:1em;margin-top:5px;" id="nodeId">LOCAL-HOST</span>
+                </div>
+            </div>
+
+            <h3 class="mt-2" style="margin-top: 1rem;">System Configuration</h3>
+            <form id="settingsForm" class="settings-form">
+                <div class="range-group">
+                    <label>Sensitivity Threshold: <span id="threshDisplay"
+                            style="color:var(--accent-blue);font-weight:bold;">40%</span></label>
+                    <input type="range" id="threshInput" min="10" max="95" value="40" style="margin-top:10px;">
+                </div>
+                <div class="range-group" style="margin-top:5px;">
+                    <label>Active YOLO Model:</label>
+                    <select id="modelSelect"
+                        style="margin-top:5px; padding:8px; border-radius:4px; border:1px solid var(--glass-border); background:rgba(0,0,0,0.5); color:#fff; width:100%;">
+                        <option value="best.pt">V1</option>
+                        <option
+                            value="C:/Users/1000001573/Downloads/continuous_fire.v1-new-dataset.yolov8/runs/detect/FINAL_FIRE_V2/weights/best.pt">
+                            V2</option>
+                        <option
+                            value="C:/Users/1000001573/Downloads/continuous_fire.v1-new-dataset.yolov8/runs/detect/FINAL_FIRE/runs/detect/FINAL_FIRE_V3/weights/best.pt"
+                            selected>V3</option>
+                    </select>
+                </div>
+                <div class="range-group" style="margin-top:5px;">
+                    <label>Emergency Email:</label>
+                    <input type="email" id="emailInput" placeholder="alert@domain.com"
+                        style="margin-top:5px; padding:8px; border-radius:4px; border:1px solid var(--glass-border); background:rgba(0,0,0,0.5); color:#fff; width:100%;">
+                </div>
+                <div class="range-group" style="margin-top:5px;">
+                    <label>Emergency Phone (SMS/Call):</label>
+                    <input type="tel" id="phoneInput" placeholder="+1234567890"
+                        style="margin-top:5px; padding:8px; border-radius:4px; border:1px solid var(--glass-border); background:rgba(0,0,0,0.5); color:#fff; width:100%;">
+                </div>
+                <div class="range-group" style="margin-top:5px;">
+                    <label>Detection Source (Cameras):</label>
+                    <select id="cameraSelector" style="margin-top:5px; padding:8px; border-radius:4px; border:1px solid var(--glass-border); background:rgba(0,0,0,0.5); color:#fff; width:100%;">
+                        <option value="0">Laptop/Built-in Camera (0)</option>
+                        <!-- Populated via API -->
+                    </select>
+                </div>
+                <button type="submit" class="btn primary">Deploy Update</button>
+            </form>
+        </aside>
+
+        <!-- Main Video Feed -->
+        <section class="video-section glass-panel">
+            <div class="video-header" style="position:absolute;z-index:10;padding:10px;">
+                <h3 style="background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.1);border-radius:6px;">Live
+                    Feed <span style="color:var(--safe-green);margin-left:5px;">HQ-MJPEG</span></h3>
+            </div>
+            <div class="video-wrapper">
+                <img src="/video_feed" id="videoFeed" alt="Stream offline">
+                <div class="overlay-scanline"></div>
+                <!-- Warning overlay when fire is detected -->
+                <div class="fire-warning-overlay" id="fireWarning">
+                    <h2>⚠️ IMMINENT FIRE THREAT DETECTED ⚠️</h2>
+                </div>
+            </div>
+        </section>
+
+        <!-- Analytics Graph -->
+        <section class="analytics-section glass-panel">
+            <h3 style="border-bottom:none">Real-Time AI Confidence Tracking</h3>
+            <div class="chart-wrapper">
+                <canvas id="confidenceChart"></canvas>
+            </div>
+        </section>
+
+        <!-- Geo Map -->
+        <section class="map-section glass-panel">
+            <h3
+                style="border-bottom:none;position:absolute;z-index:400;background:rgba(0,0,0,0.6);margin:10px;border-radius:6px;backdrop-filter:blur(5px);">
+                Deployment Node: <span id="locStatus" style="color:var(--safe-green)">Acquiring GPS...</span></h3>
+            <div id="cameraMap" class="map-container"></div>
+        </section>
+
+        <!-- Database Log Panel & Snapshots -->
+        <section class="logs-section glass-panel">
+            <div class="section-header-flex">
+                <h3>Incident Log & Snapshots</h3>
+            </div>
+            <div class="gallery-container" id="snapGallery">
+                <!-- Data populated dynamically -->
+                <div style="text-align:center;color:var(--text-secondary);padding:2rem;">No historical incidents found.
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+
+</html>
